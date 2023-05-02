@@ -2,6 +2,7 @@ const express = require("express");
 const { connection } = require("./db");
 const { QuizModel } = require("./Models/quiz.Model");
 const rateLimit = require("express-rate-limit");
+const cron = require("node-cron");
 
 const app = express();
 
@@ -53,7 +54,6 @@ app.get("/quizzes/active", async (req, res) => {
   }
 });
 
-
 // This Function get All Quiz
 app.get("/quizzes/all", async (req, res) => {
   try {
@@ -65,6 +65,35 @@ app.get("/quizzes/all", async (req, res) => {
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: "server error." });
+  }
+});
+
+// This Help to Start the change the active status on time automatic
+cron.schedule("* * * * *", async () => {
+  try {
+    const now = Date.now();
+    const activeQuiz = await QuizModel.findOne({
+      startDate: { $lt: now },
+      endDate: { $gt: now },
+      status: "inactive",
+    });
+    if (activeQuiz) {
+      activeQuiz.status = "active";
+      await activeQuiz.save();
+      console.log(`Quiz ${activeQuiz._id} is now active.`);
+    }
+
+    const finishedQuiz = await QuizModel.findOne({
+      endDate: { $lt: now },
+      status: { $ne: "finished" },
+    });
+    if (finishedQuiz) {
+      finishedQuiz.status = "finished";
+      await finishedQuiz.save();
+      console.log(`Quiz ${finishedQuiz._id} is now finished.`);
+    }
+  } catch (error) {
+    console.error(error);
   }
 });
 
